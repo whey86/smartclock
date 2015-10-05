@@ -1,25 +1,27 @@
-#include <Twitter.h>
 #include <LedControl.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <LiquidCrystal.h>
 
-
-Twitter twitter("2505156788-Wbc1QHUMjU1UpWZENXRnXByCIybIJvotqtZrbPV");
-
 LiquidCrystal lcd(5, 6, 17, 16, 15, 14);
 
-#define MaxHeaderLength 16    //maximum length of http header required
+//maximum length of http header
+#define MaxHeaderLength 16    
+//String to store header
 String HttpHeader = String(MaxHeaderLength);
+//String to store http request
 String readData = String();
+//True if done reading get request el
 boolean attribute;
 
+//Device mac address
 byte mac[] = {0xD8, 0x50, 0xE6, 0x89, 0x62, 0xB3};
+//IP-address
 IPAddress ip(192, 168, 1, 50);
 
 EthernetServer server(80);
 
-//GPIO pins used
+//GPIO pins used for LED-matrix
 int DIN = 9;
 int CS =  8;
 int CLK = 7;
@@ -37,6 +39,7 @@ boolean alarmOn = true;
 //Time to track time difference
 long lastTime = 0;
 
+//Array data for LED-matrix
 //                  Hour        Hour     Space Minutes    Minutes   Space Seconds     Seconds
 byte myTime[8] =     {0b00000010, 0b00000111, 0x00, 0b00000000, 0b00000000, 0x00, 0b00000000, 0b00000000};
 
@@ -63,65 +66,31 @@ void setup() {
 
   lcd.begin(16, 2);
   lcd.print("Welcome!");
-/*
-  if (twitter.post("Good night -Arduino smartbox")) {
-    int status = twitter.wait(&Serial);
-    if (status == 200) {
-      Serial.println("OK.");
-    } else {
-      Serial.print("failed : code ");
-      Serial.println(status);
-    }
-  } else {
-    Serial.println("connection failed.");
-  }*/
+
 }
 
 void loop() {
-
-  if (millis() - lastTime >= 990) {
+  //Check if a second has passed,if true, increase clock
+  if (millis() - lastTime >= 1000) {
     lastTime = millis();
     tick();
     checkAlarm();
-
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Current time");
-    lcd.setCursor(0, 1);
-    if (hours < 10) {
-      lcd.print("0");
-    }
-    lcd.print(hours);
-
-    lcd.print(":");
-    if (minutes < 10) {
-      lcd.print("0");
-    }
-    lcd.print(minutes);
-
-    lcd.print(":");
-    if (seconds < 10) {
-      lcd.print("0");
-    }
-    lcd.print(seconds);
-
-    if (digitalRead(BUTTONPIN) == HIGH) {
-      if (alarmOn) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Alarm canceled");
-        cancelAlarm();
-      }
-    }
-    
+    printLCDTime();
   }
-
-  printByte(myTime);
-  delay(1);
+  //Get Client
   EthernetClient client = server.available();
+  //Check is client exist, start communication with client
   if (client) {
+    //Set attriubte to false to make server ready to read new request
     attribute = false;
     while (client.connected()) {
+      //Check tick inside whileloop to not miss tick
+      if (millis() - lastTime >= 1000) {
+        lastTime = millis();
+        tick();
+        checkAlarm();
+        printLCDTime();
+      }
       if (client.available()) {
         char c = client.read();
         //read MaxHeaderLength number of characters in the HTTP header
@@ -131,16 +100,19 @@ void loop() {
           //store characters to string
           HttpHeader = HttpHeader + c;
         }
+        // "?" indicates start of reqest
         if (c == '?') {
           attribute = true;
         }
         if (attribute) {
           readData += c;
 
+           // " " indicates start of reqest
           if (c == ' ') {
             String head = readData.substring(1, 4);
             Serial.print("head ");
             Serial.println(head);
+            //Request to change light on/off
             if (head == "led") {
               String result = readData.substring(5, 6);
               Serial.println("LED ");
@@ -152,6 +124,7 @@ void loop() {
                 digitalWrite(ALARMPIN, LOW);
               }
               attribute = false;
+            //Request to set alarmtime
             } else if (head == "ala") {
               Serial.println("Alarm ");
               String inHour = readData.substring(7, 9);
@@ -165,12 +138,13 @@ void loop() {
               alarmMin = inMin.toInt();
               alarmOn = true;
               attribute = false;
-
+            //Request to cancel alarm
             } else if (head == "swi") {
               Serial.println("Abort ");
               cancelAlarm();
               attribute = false;
             }
+            //Request to set time
             else if (head == "tim") {
               Serial.println("Setting time ");
               String inHour = readData.substring(5, 7);
@@ -340,5 +314,40 @@ void cancelAlarm() {
   alarmOn = false;
   noTone(SOUNDPIN);
   digitalWrite(ALARMPIN, LOW);
+}
+/**
+ * print current time on lcdscreen
+ */
+void printLCDTime() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Current time");
+  lcd.setCursor(0, 1);
+  if (hours < 10) {
+    lcd.print("0");
+  }
+  lcd.print(hours);
+
+  lcd.print(":");
+  if (minutes < 10) {
+    lcd.print("0");
+  }
+  lcd.print(minutes);
+
+  lcd.print(":");
+  if (seconds < 10) {
+    lcd.print("0");
+  }
+  lcd.print(seconds);
+
+  if (digitalRead(BUTTONPIN) == HIGH) {
+    if (alarmOn) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Alarm canceled");
+      cancelAlarm();
+    }
+  }
+   printByte(myTime);
 }
 
