@@ -162,9 +162,10 @@ void loop() {
             readData = "";
           }
         }
+        
         //if HTTP request has ended
         if (c == '\n') {
-          // show the string on the monitor
+          // show the string on the monitor 
           Serial.println(HttpHeader);
           // start of web page
           client.println("HTTP/1.1 200 OK");
